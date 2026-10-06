@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: inboxos
+      POSTGRES_USER: inboxos
+      POSTGRES_PASSWORD: inboxos
+    ports:
+      - "5432:5432"
+    volumes:
+      - inboxos-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inboxos -d inboxos"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: .
+    profiles: ["tools"]
+    environment:
+      INBOXOS_DATABASE_URL: postgresql+asyncpg://inboxos:inboxos@postgres:5432/inboxos
+    command: ["uv", "run", "alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    environment:
+      INBOXOS_DATABASE_URL: postgresql+asyncpg://inboxos:inboxos@postgres:5432/inboxos
+      INBOXOS_ENVIRONMENT: development
+      INBOXOS_INTELLIGENCE_PROVIDER: fixture
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  inboxos-postgres:
+

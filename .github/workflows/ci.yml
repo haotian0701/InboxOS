@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: inboxos_test
+          POSTGRES_USER: inboxos
+          POSTGRES_PASSWORD: inboxos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U inboxos -d inboxos_test"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      INBOXOS_ENVIRONMENT: test
+      INBOXOS_DATABASE_URL: postgresql+asyncpg://inboxos:inboxos@localhost:5432/inboxos_test
+      TEST_DATABASE_URL: postgresql+asyncpg://inboxos:inboxos@localhost:5432/inboxos_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - run: uv run ruff check .
+      - run: uv run pyright
+      - run: uv run alembic upgrade head
+      - run: uv run alembic check
+      - run: uv run pytest
+      - run: uv run alembic downgrade base
+      - run: uv run alembic upgrade head
+
